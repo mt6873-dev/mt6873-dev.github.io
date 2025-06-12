@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C++代码编辑器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Courier New', monospace;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #FFA500, #FF4500);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        body:before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            right: -50%;
+            bottom: -50%;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(255,255,255,0.3) 0%, transparent 20%),
+                radial-gradient(circle at 80% 70%, rgba(255,255,255,0.2) 0%, transparent 25%),
+                radial-gradient(circle at 40% 60%, rgba(255,255,255,0.25) 0%, transparent 15%);
+            animation: shine 8s infinite alternate;
+            z-index: -1;
+        }
+        
+        @keyframes shine {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .editor-container {
+            width: 100%;
+            max-width: 800px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 
+                0 10px 30px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(255,255,255,0.1);
+            transform: perspective(1000px) rotateX(5deg);
+            transition: transform 0.3s ease;
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+        
+        .editor-container:hover {
+            transform: perspective(1000px) rotateX(0deg);
+        }
+        
+        .editor-header {
+            background: linear-gradient(90deg, rgba(255,255,255,0.2), rgba(255,255,255,0.15));
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            position: relative;
+            backdrop-filter: blur(5px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .header-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .header-button {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header-button.red {
+            background-color: rgba(255, 95, 86, 0.8);
+        }
+        
+        .header-button.yellow {
+            background-color: rgba(255, 189, 46, 0.8);
+        }
+        
+        .header-button.green {
+            background-color: rgba(39, 201, 63, 0.8);
+        }
+        
+        .editor-title {
+            color: rgba(0, 0, 0, 0.7);
+            font-size: 14px;
+            margin-left: 15px;
+            text-shadow: 0 1px 1px rgba(255, 255, 255, 0.3);
+            font-weight: bold;
+        }
+        
+        .editor-body {
+            background: rgba(255, 255, 255, 0.3);
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .code-wrapper {
+            position: relative;
+            height: 400px;
+            overflow: hidden;
+        }
+        
+        .line-numbers-container {
+            position: absolute;
+            left: 20px;
+            top: 0;
+            width: 40px;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        
+        .line-numbers {
+            position: absolute;
+            left: 0;
+            top: 0;
+            color: rgba(0, 0, 0, 0.4);
+            font-size: 14px;
+            line-height: 1.5;
+            user-select: none;
+            font-weight: bold;
+            text-align: right;
+            padding-right: 10px;
+            width: 100%;
+        }
+        
+        textarea.code-input {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            border: none;
+            color: rgba(0, 0, 0, 0.8);
+            font-size: 14px;
+            line-height: 1.5;
+            padding-left: 60px;
+            resize: none;
+            outline: none;
+            tab-size: 4;
+            white-space: pre;
+            font-weight: bold;
+            overflow: auto;
+        }
+        
+        .v-scrollbar {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 12px;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+        }
+        
+        .v-scrollbar-thumb {
+            position: absolute;
+            width: 8px;
+            background: rgba(255, 107, 0, 0.7);
+            border-radius: 4px;
+            left: 2px;
+            transition: height 0.2s, top 0.2s;
+            box-shadow: 0 0 4px rgba(255, 107, 0, 0.5);
+        }
+        
+        .h-scrollbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .h-scrollbar.visible {
+            opacity: 1;
+        }
+        
+        .h-scrollbar-thumb {
+            position: absolute;
+            height: 8px;
+            background: rgba(255, 107, 0, 0.7);
+            border-radius: 4px;
+            top: 2px;
+            transition: width 0.2s, left 0.2s;
+            box-shadow: 0 0 4px rgba(255, 107, 0, 0.5);
+        }
+        
+        .scroll-corner {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 12px;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 0 0 6px 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .scroll-corner.visible {
+            opacity: 1;
+        }
+        
+        .editor-footer {
+            background: linear-gradient(90deg, rgba(255,255,255,0.15), rgba(255,255,255,0.2));
+            padding: 8px 20px;
+            color: rgba(0, 0, 0, 0.6);
+            font-size: 12px;
+            text-align: right;
+            position: relative;
+            backdrop-filter: blur(5px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-weight: bold;
+        }
+        
+        .editor-footer:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        @media (max-width: 600px) {
+            .editor-container {
+                transform: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="editor-container">
+        <div class="editor-header">
+            <div class="header-buttons">
+                <div class="header-button red"></div>
+                <div class="header-button yellow"></div>
+                <div class="header-button green"></div>
+            </div>
+            <div class="editor-title">main.cpp</div>
+        </div>
+        <div class="editor-body">
+            <div class="code-wrapper">
+                <div class="line-numbers-container">
+                    <div class="line-numbers" id="lineNumbers"></div>
+                </div>
+                <textarea class="code-input" id="codeInput" spellcheck="false">#include <iostream>
+#include <vector>
+
+using namespace std;
+
+class Example {
+private:
+    int value;
+    vector<int> data;
+    
+public:
+    Example(int val) : value(val) {
+        data.reserve(10);
+    }
+    
+    void addNumber(int num) {
+        data.push_back(num);
+    }
+    
+    void printData() const {
+        cout << "Value: " << value << endl;
+        cout << "Data elements: ";
+        for (const auto& item : data) {
+            cout << item << " ";
+        }
+        cout << endl;
+    }
+};
+
+int main() {
+    Example ex(42);
+    
+    for (int i = 0; i < 5; ++i) {
+        ex.addNumber(i * 10);
+    }
+    
+    ex.printData();
+    
+    return 0;
+}</textarea>
+                <div class="v-scrollbar">
+                    <div class="v-scrollbar-thumb"></div>
+                </div>
+                <div class="h-scrollbar" id="hScrollbar">
+                    <div class="h-scrollbar-thumb"></div>
+                </div>
+                <div class="scroll-corner" id="scrollCorner"></div>
+            </div>
+        </div>
+        <div class="editor-footer" id="lineCount">
+            C++ | UTF-8 | 28 lines
+        </div>
+    </div>
+
+    <script>
+        const codeInput = document.getElementById('codeInput');
+        const lineNumbers = document.getElementById('lineNumbers');
+        const lineCount = document.getElementById('lineCount');
+        const vScrollThumb = document.querySelector('.v-scrollbar-thumb');
+        const hScrollThumb = document.querySelector('.h-scrollbar-thumb');
+        const hScrollbar = document.getElementById('hScrollbar');
+        const scrollCorner = document.getElementById('scrollCorner');
+        
+        // 检查是否需要水平滚动条
+        function checkHorizontalScroll() {
+            const hasHorizontalScroll = codeInput.scrollWidth > codeInput.clientWidth;
+            hScrollbar.classList.toggle('visible', hasHorizontalScroll);
+            scrollCorner.classList.toggle('visible', hasHorizontalScroll);
+        }
+        
+        // 初始化行号
+        function initLineNumbers() {
+            const totalLines = codeInput.value.split('\n').length;
+            updateLineNumbers(totalLines);
+            updateScrollbars();
+            checkHorizontalScroll();
+        }
+        
+        // 更新行号
+        function updateLineNumbers(totalLines) {
+            // 生成所有行号
+            let numbersHTML = '';
+            for (let i = 1; i <= totalLines; i++) {
+                numbersHTML += i + '<br>';
+            }
+            lineNumbers.innerHTML = numbersHTML;
+            
+            // 更新底部行数统计
+            lineCount.textContent = `C++ | UTF-8 | ${totalLines} lines`;
+            
+            // 设置行号容器高度
+            const lineHeight = parseInt(getComputedStyle(codeInput).lineHeight);
+            lineNumbers.style.height = `${totalLines * lineHeight}px`;
+            
+            // 初始滚动同步
+            syncLineNumbersScroll();
+        }
+        
+        // 同步行号滚动
+        function syncLineNumbersScroll() {
+            lineNumbers.style.transform = `translateY(-${codeInput.scrollTop}px)`;
+        }
+        
+        // 更新滚动条
+        function updateScrollbars() {
+            const scrollHeight = codeInput.scrollHeight;
+            const scrollTop = codeInput.scrollTop;
+            const clientHeight = codeInput.clientHeight;
+            
+            const scrollWidth = codeInput.scrollWidth;
+            const scrollLeft = codeInput.scrollLeft;
+            const clientWidth = codeInput.clientWidth;
+            
+            // 垂直滚动条
+            const vThumbHeight = Math.max((clientHeight / scrollHeight) * 100, 10);
+            const vThumbTop = (scrollTop / scrollHeight) * 100;
+            
+            // 水平滚动条
+            const hThumbWidth = Math.max((clientWidth / scrollWidth) * 100, 10);
+            const hThumbLeft = (scrollLeft / scrollWidth) * 100;
+            
+            vScrollThumb.style.height = `${vThumbHeight}%`;
+            vScrollThumb.style.top = `${vThumbTop}%`;
+            
+            hScrollThumb.style.width = `${hThumbWidth}%`;
+            hScrollThumb.style.left = `${hThumbLeft}%`;
+            
+            checkHorizontalScroll();
+        }
+        
+        // 初始化
+        initLineNumbers();
+        
+        // 事件监听
+        codeInput.addEventListener('input', () => {
+            const totalLines = codeInput.value.split('\n').length;
+            updateLineNumbers(totalLines);
+            checkHorizontalScroll();
+        });
+        
+        codeInput.addEventListener('scroll', () => {
+            syncLineNumbersScroll();
+            updateScrollbars();
+        });
+        
+        // 监听窗口大小变化
+        const resizeObserver = new ResizeObserver(() => {
+            updateScrollbars();
+            checkHorizontalScroll();
+        });
+        
+        resizeObserver.observe(codeInput);
+        
+        // 滚动条拖动功能
+        let isDraggingV = false;
+        let isDraggingH = false;
+        
+        vScrollThumb.addEventListener('mousedown', (e) => {
+            isDraggingV = true;
+            e.preventDefault();
+        });
+        
+        hScrollThumb.addEventListener('mousedown', (e) => {
+            isDraggingH = true;
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isDraggingV) {
+                const vScrollbar = document.querySelector('.v-scrollbar');
+                const rect = vScrollbar.getBoundingClientRect();
+                const percent = (e.clientY - rect.top) / rect.height;
+                codeInput.scrollTop = percent * codeInput.scrollHeight;
+            }
+            
+            if (isDraggingH) {
+                const hScrollbar = document.querySelector('.h-scrollbar');
+                const rect = hScrollbar.getBoundingClientRect();
+                const percent = (e.clientX - rect.left) / rect.width;
+                codeInput.scrollLeft = percent * codeInput.scrollWidth;
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            isDraggingV = false;
+            isDraggingH = false;
+        });
+        
+        window.addEventListener('resize', updateScrollbars);
+    </script>
+</body>
+</html>
